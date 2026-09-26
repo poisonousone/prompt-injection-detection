@@ -1,0 +1,56 @@
+[project]
+name = "promptshield"
+version = "0.1.0"
+description = "Reproducible multilingual prompt-injection dataset pipeline"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "joblib>=1.6.0",
+    "mlflow-skinny>=3.16.1",
+    "polars",
+    "pydantic",
+    "pyyaml>=6.0.3",
+    "scikit-learn>=1.9.1",
+    "sentencepiece>=0.2.2",
+    "torch>=2.14.0",
+    "transformers>=5.17.0",
+]
+
+[project.scripts]
+promptshield-data = "promptshield.pipeline:main"
+promptshield-baselines = "promptshield.baselines:main"
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+    "pyright[nodejs]",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["src", "tests"]
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

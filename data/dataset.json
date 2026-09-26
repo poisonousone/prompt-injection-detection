@@ -1,0 +1,33 @@
+{
+  "version": "starter-v1",
+  "seed": 20260925,
+  "ratios": [
+    0.7,
+    0.15,
+    0.15
+  ],
+  "near_threshold": 0.8,
+  "inputs": [
+    {
+      "path": "data/raw/deepset/train.parquet",
+      "sha256": "2e10bc7ab30f542c97e4e83e2a5683000b5057d25ec10908784c631d44124c04",
+      "adapter": "deepset_reviewed",
+      "annotations": "data/curated/deepset_review.jsonl",
+      "url": "https://huggingface.co/datasets/deepset/prompt-injections/resolve/4f61ecb038e9c3fb77e21034b22511b523772cdd/data/train-00000-of-00001-9564e8b05b4757ab.parquet"
+    },
+    {
+      "path": "data/curated/bilingual.jsonl",
+      "sha256": "1566b3d6723ccee6ab77827db1c74e3a83c6ec8c5fa7e80e5eae959c2fd13bf2",
+      "adapter": "canonical"
+    }
+  ],
+  "limitations": [
+    "Small starter corpus: subgroup sizes cannot support strong model or 1% FPR conclusions.",
+    "Russian data is entirely authored paired translation data; natural Russian public data is still needed.",
+    "The pinned public card conflicts: top-level apache-2.0, nested cc-by-4.0. Attribution is retained; clarify licensing before redistribution beyond the reviewed excerpts.",
+    "Public content role and injection mode are unknown. The allowlist is a convenience selection, not a representative random sample.",
+    "All public explicit override attacks share a conservative family group. Family labels and authored translations need independent human review.",
+    "Lexical near-duplicate detection does not prove absence of semantic or external benchmark contamination.",
+    "Detection is only one layer of defense in depth and is never a guaranteed defense."
+  ]
+}

@@ -1,0 +1,3 @@
+* text=auto eol=lf
+*.parquet binary
+*.jsonl text eol=lf
