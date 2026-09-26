@@ -18,8 +18,8 @@ from promptshield.dataset import digest
 
 serialization: Any = joblib  # Public serialization functions are incompletely typed.
 
-PROMPT_GUARD_ID = "meta-llama/Llama-Prompt-Guard-2-86M"
-PROMPT_GUARD_REVISION = "a8ded8e697ce7c355e395a0df51f94adb4a2fd27"
+DEBERTA_ID = "protectai/deberta-v3-base-prompt-injection-v2"
+DEBERTA_REVISION = "90c9989b1a342275dd0d1a95aad283c04e075671"
 
 
 @dataclass(frozen=True)
@@ -124,12 +124,12 @@ class TfidfDetector(Detector):
 
 def malicious_index(id2label: dict[int, str]) -> int:
     labels = {key: value.upper() for key, value in id2label.items()}
-    if len(labels) != 2 or set(labels.values()) != {"BENIGN", "MALICIOUS"}:
-        raise ValueError(f"Unexpected Prompt Guard class mapping: {labels}")
-    return next(key for key, label in labels.items() if label == "MALICIOUS")
+    if len(labels) != 2 or set(labels.values()) != {"SAFE", "INJECTION"}:
+        raise ValueError(f"Unexpected DeBERTa class mapping: {labels}")
+    return next(key for key, label in labels.items() if label == "INJECTION")
 
 
-class PromptGuardDetector(Detector):
+class DebertaDetector(Detector):
     def __init__(self, snapshot: Path, threshold: float = 0.5, threads: int = 1) -> None:
         import torch
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -149,8 +149,10 @@ class PromptGuardDetector(Detector):
         self.model.to("cpu")
         self.model.eval()
         if not self.tokenizer.is_fast:
-            raise ValueError("Fast tokenizer required for overflow-to-document mapping")
+            raise ValueError("Fast tokenizer required for DeBERTa input handling")
         self.positive_index = malicious_index(dict(self.model.config.id2label))
+        if self.model.config.max_position_embeddings != 512:
+            raise ValueError("Unexpected DeBERTa context limit")
         files: dict[str, JsonValue] = {
             path.name: digest(path.read_bytes())
             for path in sorted(snapshot.iterdir())
@@ -158,8 +160,8 @@ class PromptGuardDetector(Detector):
         }
         super().__init__(
             {
-                "model_id": PROMPT_GUARD_ID,
-                "requested_revision": PROMPT_GUARD_REVISION,
+                "model_id": DEBERTA_ID,
+                "requested_revision": DEBERTA_REVISION,
                 "version": digest(str(sorted(files.items())).encode()),
                 "files": files,
                 "device": "cpu",
@@ -167,7 +169,11 @@ class PromptGuardDetector(Detector):
                 "max_tokens": 512,
                 "stride": 64,
                 "aggregation": "max",
-                "score": "softmax(MALICIOUS), temperature=1",
+                "score": "softmax(INJECTION), temperature=1",
+                "license": "Apache-2.0",
+                "russian_scope": "cross_lingual_generalization_not_supported_language",
+                "fine_tuned": False,
+                "calibrated": False,
             },
             threshold,
         )
@@ -177,21 +183,26 @@ class PromptGuardDetector(Detector):
         scores: list[float] = []
         for start in range(0, len(texts), batch_size):
             batch = list(texts[start : start + batch_size])
-            encoded: Any = self.tokenizer(
-                batch,
-                padding=True,
-                truncation=True,
-                max_length=512,
-                stride=64,
-                return_overflowing_tokens=True,
-                return_tensors="pt",
-            )
-            owners: list[int] = encoded.pop("overflow_to_sample_mapping").tolist()
+            # Build windows explicitly: tokenizer overflow behavior varies by backend version.
+            encoded: Any = self.tokenizer(batch, add_special_tokens=False, truncation=False)
+            windows: list[dict[str, list[int]]] = []
+            owners: list[int] = []
+            for owner, tokens in enumerate(encoded["input_ids"]):
+                for offset in range(0, max(1, len(tokens)), 510 - 64):
+                    ids = [
+                        self.tokenizer.cls_token_id,
+                        *tokens[offset : offset + 510],
+                        self.tokenizer.sep_token_id,
+                    ]
+                    windows.append({"input_ids": ids, "attention_mask": [1] * len(ids)})
+                    owners.append(owner)
+                    if offset + 510 >= len(tokens):
+                        break
             maxima: list[float] = [0.0] * len(batch)
             for offset in range(0, len(owners), batch_size):
-                inputs = {
-                    key: value[offset : offset + batch_size] for key, value in encoded.items()
-                }
+                inputs: Any = self.tokenizer.pad(
+                    windows[offset : offset + batch_size], padding=True, return_tensors="pt"
+                )
                 with self.torch.inference_mode():
                     logits = self.model(**inputs).logits
                     risks: list[float] = self.torch.softmax(logits, dim=-1)[

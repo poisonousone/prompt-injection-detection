@@ -1,13 +1,14 @@
 # PromptShield
 
-Compact multilingual prompt-injection detection project. Task 1 implements a CPU-only
-dataset pipeline; no classifier, training, serving or benchmark execution is implemented.
+Compact multilingual prompt-injection detection project. Tasks 1–2 implement a CPU-only
+dataset pipeline, TF-IDF/logistic regression and an unmodified external DeBERTa baseline.
+Real internal evaluation and a PINT public-example evaluation are available.
 Detection is one layer of defense in depth, never a guaranteed defense.
 
 ## Setup and build
 
 Use CPython 3.14.7 and uv. Dependencies are declared in `pyproject.toml` and resolved in
-`uv.lock`; model/training dependencies will be added only with their implementation task.
+`uv.lock`; CPU model and evaluation dependencies are included.
 
 ```sh
 uv python install
@@ -30,7 +31,32 @@ The first fetch needs network access. Subsequent builds are offline. Fetch verif
 and refuses to replace existing mismatched raw bytes. Public source version, selection,
 licensing ambiguity and annotation policy are documented in `data/SOURCES.md`.
 The curated JSONL sources are small and versioned; raw downloads and processed artifacts
-are ignored by Git. PINT and AgentDojo are not used.
+are ignored by Git. PINT is evaluation-only; AgentDojo is not implemented.
+
+## Baselines and evaluation
+
+Run `uv run python -m promptshield.external` to acquire checksum-pinned PINT example
+data and the official public DeBERTa snapshot. The snapshot path and source metadata
+are written to `artifacts/external_status.json`. Then run:
+
+```sh
+uv run promptshield-baselines --output artifacts/baselines/my-run --deberta-snapshot .cache/huggingface/hub/models--protectai--deberta-v3-base-prompt-injection-v2/snapshots/90c9989b1a342275dd0d1a95aad283c04e075671 --pint data/raw/pint/0efab3f463eae9c823130d8faffb71b2e7c06e63/example-dataset.yaml --pint-sha256 df068b9a4ff72483f493add6be6242c6aa777df756bd61462aa0e13645cffa90
+```
+
+Use a new output directory for each run. The shared `Detector` interface provides
+`score`, `predict`, configurable threshold, batches and model identity. TF-IDF fits
+training only and uses a validation-selected threshold. DeBERTa uses fixed 0.5,
+unmodified weights and no calibration. Russian results measure cross-lingual
+generalization of an English model. No custom transformer has been trained.
+
+Completed run: `artifacts/baselines/task2-complete/`. Each detector has identity,
+threshold and latency JSON plus validation/internal_test/pint metrics JSON,
+predictions JSONL and targeted errors JSON. TF-IDF's trusted local serialized model
+is `tfidf/model.joblib`; never load an untrusted joblib file. Local MLflow records are
+under `mlruns/`; no tracking server is needed. Generated data/models/results stay
+Git ignored. [BASELINE_REPORT.md](BASELINE_REPORT.md) records results, source links,
+taxonomy, limitations and reproducibility details. The public eight-row PINT example
+is a smoke evaluation, not the full PINT score. Lightweight tests require no downloads.
 
 ## Outputs and reproducibility
 

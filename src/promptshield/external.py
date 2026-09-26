@@ -11,26 +11,35 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from promptshield.dataset import canonical_json, digest, normalize
 from promptshield.evaluation import Case
-from promptshield.predictors import PROMPT_GUARD_ID, PROMPT_GUARD_REVISION
+from promptshield.predictors import DEBERTA_ID, DEBERTA_REVISION
 
 PINT_REVISION = "0efab3f463eae9c823130d8faffb71b2e7c06e63"
+PINT_SHA256 = "df068b9a4ff72483f493add6be6242c6aa777df756bd61462aa0e13645cffa90"
 PINT_URL = (
     f"https://raw.githubusercontent.com/lakeraai/pint-benchmark/{PINT_REVISION}/"
     "benchmark/data/example-dataset.yaml"
 )
-CATEGORIES = {"prompt_injection", "jailbreak", "hard_negatives", "chat", "documents"}
 
 
 class PintRow(BaseModel):
     model_config = ConfigDict(strict=True, extra="allow")
     text: str = Field(min_length=1)
     label: bool
-    category: Literal["prompt_injection", "jailbreak", "hard_negatives", "chat", "documents"]
+    category: Literal[
+        "prompt_injection",
+        "jailbreak",
+        "hard_negatives",
+        "chat",
+        "documents",
+        "short_input",
+        "benign_input",
+        "long_input",
+    ]
     language: str = "unknown"
 
 
 def acquire(root: Path) -> dict[str, Any]:
-    """Fetch the public example only, and attempt the official gated model."""
+    """Fetch the public PINT example and the pinned official public model."""
     import huggingface_hub
     from huggingface_hub.errors import GatedRepoError
 
@@ -40,8 +49,12 @@ def acquire(root: Path) -> dict[str, Any]:
     if not path.exists():
         with urllib.request.urlopen(PINT_URL, timeout=60) as response:
             data = response.read()
+        if digest(data) != PINT_SHA256:
+            raise ValueError("Downloaded PINT checksum mismatch")
         with path.open("xb") as stream:
             stream.write(data)
+    if digest(path.read_bytes()) != PINT_SHA256:
+        raise ValueError("Existing immutable PINT checksum mismatch")
     status: dict[str, Any] = {
         "pint": {
             "status": "public_example_only",
@@ -52,25 +65,35 @@ def acquire(root: Path) -> dict[str, Any]:
             "url": PINT_URL,
             "full_benchmark": "not_available_locally; proprietary data not in public repository",
         },
-        "prompt_guard": {"model_id": PROMPT_GUARD_ID, "revision": PROMPT_GUARD_REVISION},
+        "deberta": {"model_id": DEBERTA_ID, "revision": DEBERTA_REVISION},
     }
     try:
         hub: Any = huggingface_hub
         snapshot = hub.snapshot_download(
-            PROMPT_GUARD_ID,
-            revision=PROMPT_GUARD_REVISION,
+            DEBERTA_ID,
+            revision=DEBERTA_REVISION,
             cache_dir=str(root / ".cache/huggingface/hub"),
-            allow_patterns=["*.json", "*.safetensors", "*.model", "*.txt"],
+            allow_patterns=[
+                "config.json",
+                "tokenizer.json",
+                "tokenizer_config.json",
+                "special_tokens_map.json",
+                "added_tokens.json",
+                "spm.model",
+                "model.safetensors",
+                "README.md",
+                "LICENSE",
+            ],
             max_workers=2,
         )
-        status["prompt_guard"].update(status="available", snapshot=snapshot)
+        status["deberta"].update(status="available", snapshot=snapshot)
     except GatedRepoError:
-        status["prompt_guard"].update(
+        status["deberta"].update(
             status="blocked_gated_access",
             reason="Official repository denied access; authorized HF session required",
         )
     except OSError as error:
-        status["prompt_guard"].update(status="download_failed", reason=type(error).__name__)
+        status["deberta"].update(status="download_failed", reason=type(error).__name__)
     target = root / "artifacts/external_status.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(canonical_json(status))

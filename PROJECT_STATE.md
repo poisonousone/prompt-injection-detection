@@ -1,11 +1,12 @@
 # PromptShield — Current Project State
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 
 ## Current phase
 
-Task 1 — Repository + Dataset Pipeline completed. No model has been trained.
-Implementation is in the working tree; the repository has no commits yet.
+Task 2 — Baselines + PINT completed within available public-data scope.
+Task 2 changes are uncommitted on base commit `36c074d`. TF-IDF trained; official
+DeBERTa evaluated without modification. No custom transformer trained.
 
 ## Completed tasks
 
@@ -13,7 +14,11 @@ Task 1: strict JSONL/CSV/Parquet ingestion, pinned public-source allowlist, immu
 checksums, provenance, exact/normalized deduplication, near-duplicate audit, deterministic
 group-aware splits, Parquet artifacts, reproducibility manifest and generated data card.
 
-Ruff check/format, strict Pyright and all 34 lightweight tests pass locally.
+Task 2: shared detector interface, train-only sklearn pipeline, pinned public DeBERTa,
+real internal evaluation, PINT public-example evaluation, latency and error artifacts,
+local MLflow tracking. Complete report: `BASELINE_REPORT.md`.
+
+Ruff check/format, strict Pyright and all 46 lightweight tests pass locally.
 Lightweight GitHub Actions configured; remote CI has not run.
 
 ## Active technical baseline
@@ -47,7 +52,9 @@ Lightweight GitHub Actions configured; remote CI has not run.
 
 ## Current models
 
-None.
+Character n-gram TF-IDF + logistic regression and external
+`protectai/deberta-v3-base-prompt-injection-v2` at
+`90c9989b1a342275dd0d1a95aad283c04e075671`.
 
 ## Current selected production model
 
@@ -55,20 +62,50 @@ None.
 
 ## Current operating point
 
-None.
+TF-IDF: 0.4403050229585025, maximum F1 on validation only. DeBERTa: fixed 0.5;
+no fine-tuning or calibration. Neither test nor PINT selected operating points.
 
 ## Current experiment artifacts
 
-None.
+Complete run: `artifacts/baselines/task2-complete/` (Git ignored).
+TF-IDF pipeline: `tfidf/model.joblib`; external weights: pinned snapshot under
+`.cache/huggingface/hub/models--protectai--deberta-v3-base-prompt-injection-v2/snapshots/`.
+Each detector has identity/threshold/latency JSON and validation/internal_test/pint
+metrics JSON, predictions JSONL and errors JSON. Run/source hashes and overlap audit
+are at run root; local tracking in `mlruns/`. Prior partial runs are superseded.
+
+Real internal test (n=14, 4 positive/10 negative):
+
+| Model | AUPRC | Recall @ 1% FPR | FPR @ 95% recall | F1 | Brier |
+|---|---:|---:|---:|---:|---:|
+| TF-IDF | 0.532576 | 0 | 0.7 | 0.666667 | 0.204418 |
+| DeBERTa | 1 | 1 | 0 | 0.888889 | 0.068647 |
+
+English n=10: F1 0.8 / 1; Russian n=4: F1 0.5 / 0.8 (TF-IDF / DeBERTa).
+Russian DeBERTa results are cross-lingual generalization, not supported-language evidence.
+Hard negatives n=4: FPR 0.5 / 0.25. Full subgroup metrics/counts in report/artifacts.
+CPU median batch latency (batch 1/8): TF-IDF 0.658/1.526 ms; DeBERTa 269.547/1395.285 ms.
+AMD Ryzen 5 3500X, one numerical thread, 3 warmups, 20 iterations per batch size.
 
 ## Current external benchmark status
 
-- PINT: not integrated
+- PINT: integrated; all 8 public-example rows evaluated, both models AUPRC/F1 1;
+  Brier TF-IDF 0.188586, DeBERTa 0.000161638. This is smoke scope only, not full PINT.
+  Pinned revision `0efab3f463eae9c823130d8faffb71b2e7c06e63`; full proprietary data unavailable.
+  Every category retained, jailbreak separately reported, unknown languages preserved.
+  Zero internal/example exact/normalized/substring overlap matches.
 - AgentDojo: not integrated
 
 ## Known issues / limitations
 
 - Small starter corpus, insufficient for reliable model or low-FPR evaluation.
+- Full PINT unavailable; eight public examples cannot establish external robustness.
+- External model is English-only per model card, archived and not intended for jailbreak
+  detection; system prompts can cause false positives. Long-document max-window scoring
+  can also raise FPR. External training contamination cannot be ruled out.
+- DeBERTa produced one high-score Russian hard-negative false positive; TF-IDF had
+  two false positives and one false negative internally. No test-driven retuning.
+- PyTorch reports a Python 3.14 TorchScript future warning; CPU eager inference succeeds.
 - Russian is authored translation data; natural Russian data and independent human review
   remain needed. Public selection is a convenience allowlist.
 - Upstream license fields conflict (apache-2.0 vs cc-by-4.0); clarify before redistribution.
@@ -79,5 +116,5 @@ None.
 
 ## Next expected task
 
-User-supplied Task 2, expected to be the character n-gram TF-IDF + logistic regression
-baseline. Review data limitations before interpreting results. Not started.
+Await user-supplied Task 3 (custom multilingual transformer); not started.
+Address dataset size/review limitations before making strong comparison claims.

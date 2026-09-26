@@ -19,10 +19,10 @@ from promptshield.dataset import canonical_json, digest, verify_splits
 from promptshield.evaluation import Case, error_analysis, evaluate, select_threshold
 from promptshield.external import overlap_audit, read_pint
 from promptshield.predictors import (
-    PROMPT_GUARD_ID,
-    PROMPT_GUARD_REVISION,
+    DEBERTA_ID,
+    DEBERTA_REVISION,
+    DebertaDetector,
     Detector,
-    PromptGuardDetector,
     TfidfDetector,
 )
 from promptshield.schema import read_records
@@ -30,6 +30,21 @@ from promptshield.schema import read_records
 
 def write_json(path: Path, value: object) -> None:
     path.write_bytes(canonical_json(value))
+
+
+def processor_name() -> str:
+    if platform.system() == "Windows":
+        import winreg
+
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"HARDWARE\DESCRIPTION\System\CentralProcessor\0",
+            ) as key:
+                return str(winreg.QueryValueEx(key, "ProcessorNameString")[0]).strip()
+        except OSError:
+            pass
+    return platform.processor()
 
 
 def benchmark(
@@ -64,7 +79,7 @@ def benchmark(
     return {
         "hardware": {
             "platform": platform.platform(),
-            "processor": platform.processor(),
+            "processor": processor_name(),
             "machine": platform.machine(),
             "logical_cpu_count": os.cpu_count(),
             "device": "cpu",
@@ -158,23 +173,27 @@ def run(
             version,
         )
         models.append(("tfidf", baseline))
-        pg_status: dict[str, Any] = {
+        deberta_status: dict[str, Any] = {
             "status": "not_executed",
-            "model_id": PROMPT_GUARD_ID,
-            "revision": PROMPT_GUARD_REVISION,
-            "reason": "No authorized local snapshot supplied",
+            "model_id": DEBERTA_ID,
+            "revision": DEBERTA_REVISION,
+            "reason": "No local snapshot supplied",
         }
         if snapshot is not None:
-            models.append(("prompt_guard", PromptGuardDetector(snapshot)))
-            pg_status["status"] = "evaluated"
-            pg_status.pop("reason")
+            models.append(("deberta", DebertaDetector(snapshot)))
+            deberta_status["status"] = "evaluated"
+            deberta_status.pop("reason")
         # Persist every operating point before reading the test/PINT records.
         for name, model in models:
             directory = output / name
             directory.mkdir()
             scores = model.score([row.text for row in validation])
-            selected = select_threshold(
-                [int(row.label == "prompt_injection") for row in validation], scores
+            selected: dict[str, Any] = (
+                select_threshold(
+                    [int(row.label == "prompt_injection") for row in validation], scores
+                )
+                if name == "tfidf"
+                else {"threshold": 0.5, "selection_split": "none", "objective": "fixed_argmax"}
             )
             selected.update(
                 validation_sha256=manifest["artifacts"]["validation.parquet"],
@@ -241,8 +260,9 @@ def run(
             "python": platform.python_version(),
             "packages": environment,
             "git_commit": git.stdout.strip() if git.returncode == 0 else None,
+            "lock_sha256": identity["lock_sha256"],
             "seed": seed,
-            "prompt_guard": pg_status,
+            "deberta": deberta_status,
             "pint": pint_status,
             "code_hashes": {
                 p.name: digest(p.read_bytes())
@@ -268,7 +288,16 @@ def track_locally(
     tracking.set_experiment("promptshield-baselines")
     for name, summary in summaries.items():
         with mlflow.start_run(run_name=name):
-            mlflow.log_params({**parameters, "detector": name})
+            model_identity = json.loads((output / name / "identity.json").read_bytes())
+            mlflow.log_params(
+                {
+                    "dataset_fingerprint": parameters["dataset_fingerprint"],
+                    "detector": name,
+                    "model_id": model_identity["model_id"],
+                    "model_version": model_identity["version"],
+                    **(parameters if name == "tfidf" else {"fine_tuned": False}),
+                }
+            )
             validation = json.loads((output / name / "validation/metrics.json").read_bytes())
             for split, values in (
                 ("validation", validation["metrics"]["overall"]),
@@ -291,7 +320,7 @@ def main() -> None:
     parser.add_argument("--dataset", type=Path, default=Path("data/processed/v1"))
     parser.add_argument("--output", type=Path, default=Path("artifacts/baselines/task2"))
     parser.add_argument("--seed", type=int, default=20260925)
-    parser.add_argument("--prompt-guard-snapshot", type=Path)
+    parser.add_argument("--deberta-snapshot", type=Path)
     parser.add_argument("--pint", type=Path)
     parser.add_argument("--pint-sha256")
     parser.add_argument(
@@ -305,7 +334,7 @@ def main() -> None:
         args.dataset,
         args.output,
         args.seed,
-        args.prompt_guard_snapshot,
+        args.deberta_snapshot,
         args.pint,
         args.pint_sha256,
         args.pint_scope,
@@ -315,7 +344,7 @@ def main() -> None:
             {
                 "output": str(args.output),
                 "results": result["results"],
-                "prompt_guard": result["prompt_guard"],
+                "deberta": result["deberta"],
                 "pint": result["pint"],
             }
         )

@@ -54,3 +54,57 @@ resolved the issue; final tests/builds passed inside the sandbox. Remote CI not 
 
 Next expected task: user-supplied Task 2 (anticipated TF-IDF + logistic regression baseline),
 with data limitations reviewed before drawing ML conclusions. Not implemented.
+
+---
+
+## Task 2 — Baselines + PINT
+
+Date: 2026-09-26
+
+State: completed within available public-data scope; uncommitted changes on `36c074d`.
+Recovered existing partial evaluation implementation; replaced the unavailable external
+baseline with official public ProtectAI DeBERTa v2, revision
+`90c9989b1a342275dd0d1a95aad283c04e075671`. No custom transformer training.
+
+Major files: `src/promptshield/{predictors,external,baselines}.py`,
+`tests/test_deberta.py` (renamed), `tests/test_evaluation.py`, `README.md`,
+`BASELINE_REPORT.md`, `PROJECT_STATE.md`, `DECISIONS.md`, this history.
+Existing dependency lock and frozen starter-v1 splits retained.
+
+Implemented/verified shared scoring/batch/threshold/identity contract; train-only sklearn
+pipeline; fixed 0.5 unmodified DeBERTa; validation-only TF-IDF threshold 0.4403050229585025;
+explicit 512-token windows with 64-token overlap; complete category-preserving PINT
+example mapping; checksum pins; local MLflow; real metrics/predictions/errors and latency.
+Fixed observed overflow-tokenizer tail loss and accepted the three extra categories in
+the actual PINT public example. Neither issue was addressed through performance tuning.
+
+Commands/checks: official HF model metadata/config/snapshot download; pinned GitHub
+dataset-tree verification; `uv run python -m promptshield.external`; real tokenizer and
+weight smoke checks; targeted evaluation/window tests (12 passed); real
+`uv run promptshield-baselines --output artifacts/baselines/task2-complete ...`;
+`uv sync --locked`; Ruff check/format; strict Pyright; full pytest (46 passed).
+All final lightweight checks passed. Remote CI not executed.
+
+Measured internal test n=14 (4 positive/10 negative), TF-IDF / DeBERTa:
+AUPRC 0.532576 / 1; Recall @ 1% FPR 0 / 1; FPR @ 95% recall 0.7 / 0;
+F1 0.666667 / 0.888889; Brier 0.204418 / 0.068647.
+English n=10 F1 0.8 / 1; Russian n=4 F1 0.5 / 0.8; hard negatives n=4 FPR 0.5 / 0.25.
+Russian external-model results are cross-lingual generalization only. Internal errors
+3 / 1; DeBERTa's error is a high-score Russian hard-negative false positive.
+All 8 PINT public-example rows evaluated: both AUPRC/F1 1, Brier 0.188586 / 0.000161638;
+zero lexical overlap matches. This is smoke scope, not full PINT.
+Median CPU batch latency (1/8): TF-IDF 0.658/1.526 ms; DeBERTa 269.547/1395.285 ms.
+AMD Ryzen 5 3500X, one numerical thread, 3 warmups, 20 iterations per batch size.
+
+Artifacts: `artifacts/baselines/task2-complete/`, official snapshot under
+`.cache/huggingface/hub/`, raw example under `data/raw/pint/`, local `mlruns/`.
+Generated outputs remain ignored; report records source/model/environment identities.
+Prior interrupted run directories remain incomplete and are superseded.
+
+Known issues: tiny internal subgroups; unavailable full proprietary PINT; authored Russian
+data and existing data-license ambiguity; unverified external training contamination;
+English-only archived external model; max-window document FPR risk. PyTorch emits a
+Python 3.14 TorchScript future warning, but eager CPU inference passed. No fine-tuning,
+calibration, test/PINT threshold tuning, production-model selection or AgentDojo run.
+
+Next expected task: user-supplied Task 3 (custom multilingual transformer); not started.

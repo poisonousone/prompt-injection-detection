@@ -73,9 +73,9 @@ def test_tfidf_fits_only_train_batches_and_roundtrips(tmp_path: Path) -> None:
         model.predict(texts, 0)
 
 
-def test_prompt_guard_mapping_is_explicit_and_reversible() -> None:
-    assert malicious_index({0: "BENIGN", 1: "MALICIOUS"}) == 1
-    assert malicious_index({1: "BENIGN", 0: "MALICIOUS"}) == 0
+def test_deberta_mapping_is_explicit_and_reversible() -> None:
+    assert malicious_index({0: "SAFE", 1: "INJECTION"}) == 1
+    assert malicious_index({1: "SAFE", 0: "INJECTION"}) == 0
     with pytest.raises(ValueError):
         malicious_index({0: "LABEL_0", 1: "LABEL_1"})
 
@@ -90,12 +90,15 @@ def test_pint_preserves_every_category_and_label(tmp_path: Path) -> None:
 - {text: a chat message, category: chat, label: false}
 - {text: a document, category: documents, label: false}
 - {text: legitimate instruction, category: prompt_injection, label: false}
+- {text: short example, category: short_input, label: true}
+- {text: benign example, category: benign_input, label: false}
+- {text: long example, category: long_input, label: true}
 """,
         encoding="utf-8",
     )
     cases = read_pint(path, digest(path.read_bytes()))
-    assert len(cases) == 6 and sum(row.target for row in cases) == 2
-    assert cases[-1].target == 0
+    assert len(cases) == 9 and sum(row.target for row in cases) == 4
+    assert cases[5].target == 0
     assert all(row.language == "unknown" for row in cases)
     assert cases[2].hard_negative
     audit = overlap_audit({"train": [cases[0]]}, cases)

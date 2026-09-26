@@ -1,4 +1,4 @@
-"""Offline mechanics tests; these are not real Prompt Guard model evaluations."""
+"""Offline mechanics tests; these are not real DeBERTa model evaluations."""
 
 from types import SimpleNamespace
 from typing import Any
@@ -8,7 +8,7 @@ import torch
 from tokenizers import Tokenizer, models, pre_tokenizers, processors
 from transformers import PreTrainedTokenizerFast
 
-from promptshield.predictors import Detector, PromptGuardDetector
+from promptshield.predictors import DebertaDetector, Detector
 
 
 class WindowModel:
@@ -22,18 +22,23 @@ class WindowModel:
 
 
 def test_overflow_tail_coverage_batch_order_and_score_direction() -> None:
+    model_api: Any = models
+    pre_tokenizer_api: Any = pre_tokenizers
+    processor_api: Any = processors
     raw = Tokenizer(
-        models.WordLevel(
+        model_api.WordLevel(
             {"[UNK]": 0, "[CLS]": 1, "[SEP]": 2, "word": 3, "trigger": 4}, unk_token="[UNK]"
         )
     )
-    raw.pre_tokenizer = pre_tokenizers.Whitespace()
-    raw.post_processor = processors.TemplateProcessing(
+    raw.pre_tokenizer = pre_tokenizer_api.Whitespace()
+    raw.post_processor = processor_api.TemplateProcessing(
         single="[CLS] $A [SEP]", special_tokens=[("[CLS]", 1), ("[SEP]", 2)]
     )
-    model = PromptGuardDetector.__new__(PromptGuardDetector)
+    model = DebertaDetector.__new__(DebertaDetector)
     Detector.__init__(model, {"model_id": "offline-mechanics-fixture"}, threshold=0.9)
-    model.tokenizer = PreTrainedTokenizerFast(tokenizer_object=raw, pad_token="[UNK]")
+    model.tokenizer = PreTrainedTokenizerFast(
+        tokenizer_object=raw, pad_token="[UNK]", cls_token="[CLS]", sep_token="[SEP]"
+    )
     model.model = WindowModel()
     model.torch = torch
     model.positive_index = 1
