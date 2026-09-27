@@ -1,0 +1,8 @@
+{
+  "temperature_min": 0.05,
+  "temperature_max": 20.0,
+  "reliability_bins": 5,
+  "high_confidence": 0.9,
+  "default_min_recall": 0.8,
+  "high_security_min_recall": 0.95
+}

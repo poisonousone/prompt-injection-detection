@@ -1,59 +1,31 @@
-# Python
+# Python and local environment
 __pycache__/
 *.py[cod]
-*.so
-
-# Virtual environments
 .venv/
-venv/
+.tools/
 
-# Tool caches
+# Caches and temporary files
+.cache/
 .pytest_cache/
 pytest-cache-files-*/
 .ruff_cache/
-.mypy_cache/
-.pyright/
-.cache/
-.tools/
-*.egg-info/
-dist/
+tmp/
 
-# IDE
-.idea/
-.vscode/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Environment / secrets
+# Local environment variables / credentials
 .env
 .env.*
 !.env.example
 
-# Data
-data/raw/
-data/processed/
-*.parquet
+# Downloaded data and generated experiment artifacts
+/data/raw/
+/data/processed/
+/artifacts/
+/mlruns/
 
-# Models
-models/
-checkpoints/
-*.safetensors
-*.bin
-*.pt
-*.pth
-
-# Experiments
-mlruns/
-artifacts/
-outputs/
-logs/
-
-# Coverage
-.coverage
-htmlcov/
-
-# Temporary
-tmp/
-temp/
+# Local coding-agent instructions and context
+AGENTS.md
+/PROJECT_STATE.md
+/DECISIONS.md
+/TASK_HISTORY.md
+.agents/
+.codex/

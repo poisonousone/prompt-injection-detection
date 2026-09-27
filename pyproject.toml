@@ -4,20 +4,25 @@ version = "0.1.0"
 description = "Reproducible multilingual prompt-injection dataset pipeline"
 requires-python = ">=3.14,<3.15"
 dependencies = [
+    "fastapi>=0.141.1",
     "joblib>=1.6.0",
     "mlflow-skinny>=3.16.1",
     "polars",
+    "prometheus-client>=0.26.0",
     "pydantic",
     "pyyaml>=6.0.3",
     "scikit-learn>=1.9.1",
     "sentencepiece>=0.2.2",
     "torch>=2.14.0",
     "transformers>=5.17.0",
+    "uvicorn>=0.54.0",
 ]
 
 [project.scripts]
 promptshield-data = "promptshield.pipeline:main"
 promptshield-baselines = "promptshield.baselines:main"
+promptshield-train = "promptshield.training:main"
+promptshield-robustness = "promptshield.robustness:main"
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -32,10 +37,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
+agentdojo = [
+    "agentdojo==0.1.35",
+]
 dev = [
     "pytest",
     "ruff",
     "pyright[nodejs]",
+    "httpx>=0.28.1",
 ]
 
 [tool.ruff]

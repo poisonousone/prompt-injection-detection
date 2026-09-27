@@ -1,0 +1,16 @@
+{
+  "seed": 20260925,
+  "learning_rate": 0.00002,
+  "batch_size": 4,
+  "max_length": 256,
+  "weight_decay": 0.01,
+  "scheduler": "linear",
+  "warmup_ratio": 0.1,
+  "gradient_accumulation": 2,
+  "epochs": 3,
+  "patience": 2,
+  "precision": "fp32",
+  "device": "cpu",
+  "threads": 2,
+  "smoke": false
+}
